@@ -1,6 +1,6 @@
 import { internalMutation, query, QueryCtx } from "./_generated/server";
 import { UserJSON } from "@clerk/backend";
-import { v, Validator } from "convex/values";
+import { ConvexError, v, Validator } from "convex/values";
 
 export const current = query({
   args: {},
@@ -9,51 +9,61 @@ export const current = query({
   },
 });
 
-export const upsertFromClerk = internalMutation({
-  args: { data: v.any() as Validator<UserJSON> },
-  async handler(ctx, { data }) {
-    const name =
-      data.first_name && data.last_name
-        ? `${data.first_name} ${data.last_name}`
-        : "";
-
-    const userAttributes = {
-      name,
-      email: data.email_addresses[0].email_address,
-      imageUrl: data.image_url,
-      clerkId: data.id,
-    };
-
-    const user = await userByExternalId(ctx, data.id);
-
-    if (user === null) {
-      await ctx.db.insert("users", userAttributes);
-    } else {
-      await ctx.db.patch(user._id, userAttributes);
-    }
+export const createUser = internalMutation({
+  args: {
+    clerkId: v.string(),
+    email: v.string(),
+    imageUrl: v.string(),
+    name: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.insert("users", {
+      clerkId: args.clerkId,
+      email: args.email,
+      imageUrl: args.imageUrl,
+      name: args.name,
+    });
   },
 });
 
-export const deleteFromClerk = internalMutation({
-  args: { clerkUserId: v.string() },
-  async handler(ctx, { clerkUserId }) {
-    const user = await userByExternalId(ctx, clerkUserId);
+export const updateUser = internalMutation({
+  args: {
+    clerkId: v.string(),
+    imageUrl: v.string(),
+    email: v.string(),
+  },
+  async handler(ctx, args) {
+    const user = await ctx.db
+      .query("users")
+      .filter((q) => q.eq(q.field("clerkId"), args.clerkId))
+      .unique();
 
-    if (user !== null) {
-      await ctx.db.delete(user._id);
-    } else {
-      console.warn(
-        `Can't delete user, there is none for Clerk user ID: ${clerkUserId}`
-      );
+    if (!user) {
+      throw new ConvexError("User not found");
     }
+
+    await ctx.db.patch(user._id, {
+      imageUrl: args.imageUrl,
+      email: args.email,
+    });
   },
 });
 
-export async function getCurrentUserOrThrow(ctx: QueryCtx) {
-  const userRecord = await getCurrentUser(ctx);
-  if (!userRecord) throw new Error("Can't get current user");
-  return userRecord;
-}
+export const deleteUser = internalMutation({
+  args: { clerkId: v.string() },
+  async handler(ctx, args) {
+    const user = await ctx.db
+      .query("users")
+      .filter((q) => q.eq(q.field("clerkId"), args.clerkId))
+      .unique();
+
+    if (!user) {
+      throw new ConvexError("User not found");
+    }
+
+    await ctx.db.delete(user._id);
+  },
+});
 
 export async function getCurrentUser(ctx: QueryCtx) {
   const identity = await ctx.auth.getUserIdentity();

@@ -1,8 +1,8 @@
 import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
-import type { WebhookEvent } from "@clerk/backend";
 import { Webhook } from "svix";
+import type { WebhookEvent } from "@clerk/backend";
 
 const http = httpRouter();
 
@@ -16,15 +16,24 @@ http.route({
     }
     switch (event.type) {
       case "user.created":
-      case "user.updated":
-        await ctx.runMutation(internal.users.upsertFromClerk, {
-          data: event.data,
+        await ctx.runMutation(internal.users.createUser, {
+          clerkId: event.data.id,
+          email: event.data.email_addresses[0].email_address,
+          imageUrl: event.data.image_url ?? "",
+          name: event.data.first_name ?? "",
         });
         break;
-
+      case "user.updated":
+        await ctx.runMutation(internal.users.updateUser, {
+          clerkId: event.data.id,
+          imageUrl: event.data.image_url,
+          email: event.data.email_addresses[0].email_address,
+        });
+        break;
       case "user.deleted": {
-        const clerkUserId = event.data.id!;
-        await ctx.runMutation(internal.users.deleteFromClerk, { clerkUserId });
+        await ctx.runMutation(internal.users.deleteUser, {
+          clerkId: event.data.id as string,
+        });
         break;
       }
       default:
