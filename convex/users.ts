@@ -11,57 +11,50 @@ export const current = query({
 
 export const createUser = internalMutation({
   args: {
-    clerkId: v.string(),
-    email: v.string(),
-    imageUrl: v.string(),
-    name: v.string(),
+    data: v.any() as Validator<UserJSON>,
   },
-  handler: async (ctx, args) => {
-    await ctx.db.insert("users", {
-      clerkId: args.clerkId,
-      email: args.email,
-      imageUrl: args.imageUrl,
-      name: args.name,
-    });
+  handler: async (ctx, { data }) => {
+    const userAttributes = {
+      name: `${data.first_name} ${data.last_name}`,
+      email: data.email_addresses[0].email_address,
+      imageUrl: data.image_url,
+      clerkId: data.id,
+    };
+
+    await ctx.db.insert("users", userAttributes);
   },
 });
 
 export const updateUser = internalMutation({
   args: {
-    clerkId: v.string(),
-    imageUrl: v.string(),
-    email: v.string(),
+    data: v.any() as Validator<UserJSON>,
   },
-  async handler(ctx, args) {
-    const user = await ctx.db
-      .query("users")
-      .filter((q) => q.eq(q.field("clerkId"), args.clerkId))
-      .unique();
+  async handler(ctx, { data }) {
+    const userAttributes = {
+      name: `${data.first_name} ${data.last_name}`,
+      email: data.email_addresses[0].email_address,
+      imageUrl: data.image_url,
+      clerkId: data.id,
+    };
 
-    if (!user) {
-      throw new ConvexError("User not found");
+    const user = await userByExternalId(ctx, data.id);
+
+    if (user !== null) {
+      await ctx.db.patch(user._id, userAttributes);
     }
-
-    await ctx.db.patch(user._id, {
-      imageUrl: args.imageUrl,
-      email: args.email,
-    });
   },
 });
 
 export const deleteUser = internalMutation({
   args: { clerkId: v.string() },
-  async handler(ctx, args) {
-    const user = await ctx.db
-      .query("users")
-      .filter((q) => q.eq(q.field("clerkId"), args.clerkId))
-      .unique();
+  async handler(ctx, { clerkId }) {
+    const user = await userByExternalId(ctx, clerkId);
 
-    if (!user) {
-      throw new ConvexError("User not found");
+    if (user !== null) {
+      await ctx.db.delete(user._id);
+    } else {
+      console.warn(`Can't delete user with id: ${clerkId}`);
     }
-
-    await ctx.db.delete(user._id);
   },
 });
 

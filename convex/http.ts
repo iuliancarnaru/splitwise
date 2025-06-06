@@ -17,22 +17,18 @@ http.route({
     switch (event.type) {
       case "user.created":
         await ctx.runMutation(internal.users.createUser, {
-          clerkId: event.data.id,
-          email: event.data.email_addresses[0].email_address,
-          imageUrl: event.data.image_url ?? "",
-          name: event.data.first_name ?? "",
+          data: event.data,
         });
         break;
       case "user.updated":
         await ctx.runMutation(internal.users.updateUser, {
-          clerkId: event.data.id,
-          imageUrl: event.data.image_url,
-          email: event.data.email_addresses[0].email_address,
+          data: event.data,
         });
         break;
       case "user.deleted": {
+        const clerkUserId = event.data.id!;
         await ctx.runMutation(internal.users.deleteUser, {
-          clerkId: event.data.id as string,
+          clerkId: clerkUserId,
         });
         break;
       }
