@@ -12,7 +12,7 @@ import { useCurrentUser } from "@/hooks/useCurrentUser";
 
 export default function Header() {
   const pathname = usePathname();
-  const { isLoading, isAuthenticated } = useCurrentUser();
+  const { isLoading } = useCurrentUser();
 
   return (
     <header className="w-full fixed top-0 border-b bg-white/95 backdrop-blur z-50 supports-[backdrop-filter]:bg-white/60">
