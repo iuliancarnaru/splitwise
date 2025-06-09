@@ -11,9 +11,11 @@ http.route({
   method: "POST",
   handler: httpAction(async (ctx, request) => {
     const event = await validateRequest(request);
+
     if (!event) {
       return new Response("Error occurred", { status: 400 });
     }
+
     switch (event.type) {
       case "user.created":
         await ctx.runMutation(internal.users.createUser, {
