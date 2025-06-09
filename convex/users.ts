@@ -9,21 +9,6 @@ export const current = query({
   },
 });
 
-export async function getCurrentUser(ctx: QueryCtx) {
-  const identity = await ctx.auth.getUserIdentity();
-  if (identity === null) {
-    return null;
-  }
-  return await userByExternalId(ctx, identity.subject);
-}
-
-async function userByExternalId(ctx: QueryCtx, externalId: string) {
-  return await ctx.db
-    .query("users")
-    .withIndex("by_clerk_id", (q) => q.eq("clerkId", externalId))
-    .unique();
-}
-
 export const createUser = internalMutation({
   args: {
     data: v.any() as Validator<UserJSON>,
@@ -52,10 +37,7 @@ export const updateUser = internalMutation({
       clerkId: data.id,
     };
 
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_clerk_id", (q) => q.eq("clerkId", data.id))
-      .unique();
+    const user = await userByExternalId(ctx, data.id);
 
     if (user !== null) {
       await ctx.db.patch(user._id, userAttributes);
@@ -66,10 +48,7 @@ export const updateUser = internalMutation({
 export const deleteUser = internalMutation({
   args: { clerkId: v.string() },
   async handler(ctx, { clerkId }) {
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
-      .unique();
+    const user = await userByExternalId(ctx, clerkId);
 
     if (user !== null) {
       await ctx.db.delete(user._id);
@@ -78,3 +57,18 @@ export const deleteUser = internalMutation({
     }
   },
 });
+
+export async function getCurrentUser(ctx: QueryCtx) {
+  const identity = await ctx.auth.getUserIdentity();
+  if (identity === null) {
+    return null;
+  }
+  return await userByExternalId(ctx, identity.subject);
+}
+
+async function userByExternalId(ctx: QueryCtx, externalId: string) {
+  return await ctx.db
+    .query("users")
+    .withIndex("by_clerk_id", (q) => q.eq("clerkId", externalId))
+    .unique();
+}
