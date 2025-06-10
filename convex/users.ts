@@ -29,7 +29,7 @@ export const updateUser = internalMutation({
   args: {
     data: v.any() as Validator<UserJSON>,
   },
-  async handler(ctx, { data }) {
+  handler: async (ctx, { data }) => {
     const userAttributes = {
       name: `${data.first_name} ${data.last_name}`,
       email: data.email_addresses[0].email_address,
@@ -37,7 +37,7 @@ export const updateUser = internalMutation({
       clerkId: data.id,
     };
 
-    const user = await userByExternalId(ctx, data.id);
+    const user = await getCurrentUser(ctx);
 
     if (user !== null) {
       await ctx.db.patch(user._id, userAttributes);
@@ -47,8 +47,8 @@ export const updateUser = internalMutation({
 
 export const deleteUser = internalMutation({
   args: { clerkId: v.string() },
-  async handler(ctx, { clerkId }) {
-    const user = await userByExternalId(ctx, clerkId);
+  handler: async (ctx, { clerkId }) => {
+    const user = await getCurrentUser(ctx);
 
     if (user !== null) {
       await ctx.db.delete(user._id);
@@ -63,7 +63,7 @@ export const searchUsers = query({
     query: v.string(),
   },
   handler: async (ctx, args) => {
-    const currentUser = await getCurrentUser(ctx);
+    const user = await getCurrentUser(ctx);
 
     if (args.query.length < 2) {
       return [];
@@ -87,7 +87,7 @@ export const searchUsers = query({
     ];
 
     return users
-      .filter((user) => user._id !== currentUser?._id)
+      .filter((u) => u._id !== user?._id)
       .map((user) => ({
         id: user._id,
         name: user.name,

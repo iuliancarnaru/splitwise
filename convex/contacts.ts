@@ -1,7 +1,8 @@
-import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import { getCurrentUser } from "./users";
+import { api } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
+import { query, mutation } from "./_generated/server";
+import { getCurrentUser } from "./users";
 
 export const getAllContacts = query({
   args: {},
