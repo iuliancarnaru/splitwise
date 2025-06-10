@@ -90,11 +90,10 @@ export const getUserBalances = query({
 });
 
 export const getTotalSpent = query({
-  args: {},
-  handler: async (ctx, args) => {
-    const currentUser = await getCurrentUser(ctx);
+  handler: async (ctx) => {
+    const user = await getCurrentUser(ctx);
 
-    if (!currentUser) {
+    if (!user) {
       throw new Error("User not found");
     }
 
@@ -108,10 +107,151 @@ export const getTotalSpent = query({
 
     const userExpenses = expenses.filter(
       (expense) =>
-        expense.paidByUserId === currentUser._id ||
-        expense.splits.some((split) => split.userId === currentUser._id)
+        expense.paidByUserId === user._id ||
+        expense.splits.some((split) => split.userId === user._id)
     );
 
-    const monthlyTotals = {};
+    let totalSpent = 0;
+
+    userExpenses.forEach((expense) => {
+      const userSplit = expense.splits.find(
+        (split) => split.userId === user._id
+      );
+      if (userSplit) {
+        totalSpent += userSplit.amount;
+      }
+    });
+
+    return totalSpent;
+  },
+});
+
+export const getMonthlySpending = query({
+  handler: async (ctx) => {
+    const user = await getCurrentUser(ctx);
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    const currentYear = new Date().getFullYear();
+    const startOfYear = new Date(currentYear, 0, 1).getTime();
+
+    const allExpenses = await ctx.db
+      .query("expenses")
+      .withIndex("by_date", (q) => q.gte("date", startOfYear))
+      .collect();
+
+    const userExpenses = allExpenses.filter(
+      (expense) =>
+        expense.paidByUserId === user._id ||
+        expense.splits.some((split) => split.userId === user._id)
+    );
+
+    const monthlyTotals: Record<number, number> = {};
+
+    for (let i = 0; i < 12; i++) {
+      const monthDate = new Date(currentYear, i, 1);
+      monthlyTotals[monthDate.getTime()] = 0;
+    }
+
+    userExpenses.forEach((expense) => {
+      const date = new Date(expense.date);
+      const monthStart = new Date(
+        date.getFullYear(),
+        date.getMonth(),
+        1
+      ).getTime();
+
+      const userSplit = expense.splits.find(
+        (split) => split.userId === user._id
+      );
+      if (userSplit) {
+        monthlyTotals[monthStart] =
+          (monthlyTotals[monthStart] || 0) + userSplit.amount;
+      }
+    });
+
+    const result = Object.entries(monthlyTotals).map(([month, total]) => ({
+      month: parseInt(month),
+      total,
+    }));
+
+    result.sort((a, b) => a.month - b.month);
+
+    return result;
+  },
+});
+
+export const getUserGroups = query({
+  handler: async (ctx) => {
+    const user = await getCurrentUser(ctx);
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    const allGroups = await ctx.db.query("groups").collect();
+
+    const groups = allGroups.filter((group) =>
+      group.members.some((member) => member.userId === user._id)
+    );
+
+    const enhancedGroups = await Promise.all(
+      groups.map(async (group) => {
+        const expenses = await ctx.db
+          .query("expenses")
+          .withIndex("by_group", (q) => q.eq("groupId", group._id))
+          .collect();
+
+        let balance = 0;
+
+        expenses.forEach((expense) => {
+          if (expense.paidByUserId === user._id) {
+            expense.splits.forEach((split) => {
+              if (split.userId !== user._id && !split.paid) {
+                balance += split.amount;
+              }
+            });
+          } else {
+            const userSplit = expense.splits.find(
+              (split) => split.userId === user._id
+            );
+            if (userSplit && !userSplit.paid) {
+              balance -= userSplit.amount;
+            }
+          }
+        });
+
+        const settlements = await ctx.db
+          .query("settlements")
+          .filter((q) =>
+            q.and(
+              q.eq(q.field("groupId"), group._id),
+              q.or(
+                q.eq(q.field("paidByUserId"), user._id),
+                q.eq(q.field("receivedByUserId"), user._id)
+              )
+            )
+          )
+          .collect();
+
+        settlements.forEach((settlement) => {
+          if (settlement.paidByUserId === user._id) {
+            balance += settlement.amount;
+          } else {
+            balance -= settlement.amount;
+          }
+        });
+
+        return {
+          ...group,
+          id: group._id,
+          balance,
+        };
+      })
+    );
+
+    return enhancedGroups;
   },
 });
