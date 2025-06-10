@@ -1,31 +1,32 @@
 "use client";
+import CreateGroupModal from "@/components/CreateGroupModal";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { api } from "@/convex/_generated/api";
-import { useAsyncQuery } from "@/hooks/useAsyncQuery";
+import { Id } from "@/convex/_generated/dataModel";
+import { useQuery } from "convex/react";
+
 import { Plus, User, Users } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { HashLoader } from "react-spinners";
 
 export default function ContactsPage() {
-  const { data, error, isLoading } = useAsyncQuery(api.contacts.getAllContacts);
+  const router = useRouter();
+  const contacts = useQuery(api.contacts.getAllContacts);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  if (isLoading) {
+  if (!contacts) {
     return (
       <div className="flex items-center justify-center h-full">
-        <HashLoader loading={isLoading} size={40} color="#36d7b7" />
+        <HashLoader size={40} color="#36d7b7" />
       </div>
     );
   }
 
-  if (error) {
-    return <div>{error.message}</div>;
-  }
-
-  const { users = [], groups = [] } = data || {};
+  const { users, groups } = contacts || {};
 
   return (
     <div className="container mx-auto py-6">
@@ -116,6 +117,11 @@ export default function ContactsPage() {
           )}
         </div>
       </div>
+      <CreateGroupModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSuccess={(groupId: Id<"groups">) => router.push(`/groups/${groupId}`)}
+      />
     </div>
   );
 }

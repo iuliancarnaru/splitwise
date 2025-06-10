@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "convex/react";
 import { FunctionReference, OptionalRestArgs } from "convex/server";
-import { toast } from "sonner";
 
 export function useAsyncQuery<Query extends FunctionReference<"query">>(
   query: Query,
@@ -22,7 +21,6 @@ export function useAsyncQuery<Query extends FunctionReference<"query">>(
     const queryError = err instanceof Error ? err : new Error(String(err));
     setError(queryError);
     isLoading = false;
-    toast.error(queryError.message);
   }
 
   return {
